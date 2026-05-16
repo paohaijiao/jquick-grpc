@@ -7,6 +7,7 @@ import com.github.paohaijiao.grpc.config.JQuickGrpcClientConfig;
 import com.github.paohaijiao.grpc.config.JQuickGrpcServerConfig;
 import com.github.paohaijiao.grpc.discovery.JQuickGrpcServiceDiscovery;
 import com.github.paohaijiao.grpc.loadbalance.JQuickGrpcLoadBalancer;
+import com.github.paohaijiao.grpc.loadbalance.impl.JQuickGrpcLeastConnectionLoadBalancer;
 import com.github.paohaijiao.grpc.loadbalance.impl.JQuickGrpcRandomLoadBalancer;
 import com.github.paohaijiao.grpc.loadbalance.impl.JQuickGrpcRoundRobinLoadBalancer;
 import com.github.paohaijiao.grpc.loadbalance.impl.JQuickGrpcWeightedLoadBalancer;
@@ -36,6 +37,7 @@ public class JQuickGrpcDynamicFactory {
         loadBalancerMap.put("roundRobin", new JQuickGrpcRoundRobinLoadBalancer());
         loadBalancerMap.put("random", new JQuickGrpcRandomLoadBalancer());
         loadBalancerMap.put("weighted", new JQuickGrpcWeightedLoadBalancer());
+        loadBalancerMap.put("leastConnection", new JQuickGrpcLeastConnectionLoadBalancer());
     }
 
     public JQuickGrpcServer createServer(JQuickGrpcServerConfig config) {

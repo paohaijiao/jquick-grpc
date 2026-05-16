@@ -1,5 +1,5 @@
 package com.github.paohaijiao;
-import com.github.paohaijiao.grpc.discovery.impl.JQuickGrpcServiceInstance;
+import com.github.paohaijiao.grpc.domain.JQuickGrpcServiceInstance;
 import com.github.paohaijiao.grpc.metadata.JQuickServiceInstanceMetrics;
 import org.junit.jupiter.api.Test;
 

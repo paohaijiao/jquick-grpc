@@ -1,7 +1,7 @@
 package com.github.paohaijiao.grpc.resolver;
 
 import com.github.paohaijiao.grpc.discovery.JQuickGrpcServiceDiscovery;
-import com.github.paohaijiao.grpc.discovery.impl.JQuickGrpcServiceInstance;
+import com.github.paohaijiao.grpc.domain.JQuickGrpcServiceInstance;
 import io.grpc.Attributes;
 import io.grpc.EquivalentAddressGroup;
 import io.grpc.NameResolver;

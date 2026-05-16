@@ -1,4 +1,4 @@
-package com.github.paohaijiao.grpc.discovery.impl;
+package com.github.paohaijiao.grpc.domain;
 import com.github.paohaijiao.grpc.metadata.JQuickServiceInstanceMetrics;
 import lombok.Data;
 

@@ -2,7 +2,7 @@ package com.github.paohaijiao;
 import com.github.paohaijiao.grpc.client.JQuickGrpcClient;
 import com.github.paohaijiao.grpc.config.JQuickGrpcClientConfig;
 import com.github.paohaijiao.grpc.config.JQuickGrpcServerConfig;
-import com.github.paohaijiao.grpc.discovery.impl.JQuickGrpcServiceInstance;
+import com.github.paohaijiao.grpc.domain.JQuickGrpcServiceInstance;
 import com.github.paohaijiao.grpc.factory.JQuickGrpcDynamicFactory;
 import com.github.paohaijiao.grpc.loadbalance.JQuickGrpcLoadBalancer;
 import com.github.paohaijiao.grpc.server.JQuickGrpcServer;
@@ -85,7 +85,7 @@ public class JQuickGrpcDynamicFactoryTest {
     void testRegisterLoadBalancer() {
         JQuickGrpcLoadBalancer customBalancer = new JQuickGrpcLoadBalancer() {
             @Override
-            public com.github.paohaijiao.grpc.discovery.impl.JQuickGrpcServiceInstance select(
+            public JQuickGrpcServiceInstance select(
                     List<JQuickGrpcServiceInstance> instances) {
                 return instances.get(0);
             }

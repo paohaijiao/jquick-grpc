@@ -1,7 +1,7 @@
 package com.github.paohaijiao;
 
 
-import com.github.paohaijiao.grpc.discovery.impl.JQuickGrpcServiceInstance;
+import com.github.paohaijiao.grpc.domain.JQuickGrpcServiceInstance;
 import com.github.paohaijiao.grpc.loadbalance.impl.JQuickGrpcLeastConnectionLoadBalancer;
 import com.github.paohaijiao.grpc.loadbalance.impl.JQuickGrpcRandomLoadBalancer;
 import com.github.paohaijiao.grpc.loadbalance.impl.JQuickGrpcRoundRobinLoadBalancer;
@@ -14,7 +14,6 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.jupiter.api.Assertions.*;
 

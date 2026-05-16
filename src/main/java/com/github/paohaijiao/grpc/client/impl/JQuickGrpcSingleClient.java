@@ -2,7 +2,7 @@ package com.github.paohaijiao.grpc.client.impl;
 import com.github.paohaijiao.grpc.client.JQuickGrpcClient;
 import com.github.paohaijiao.grpc.config.JQuickGrpcClientConfig;
 import com.github.paohaijiao.grpc.discovery.JQuickGrpcServiceDiscovery;
-import com.github.paohaijiao.grpc.discovery.impl.JQuickGrpcServiceInstance;
+import com.github.paohaijiao.grpc.domain.JQuickGrpcServiceInstance;
 import com.github.paohaijiao.grpc.interceptor.JQuickGrpcClientInterceptor;
 import com.github.paohaijiao.grpc.loadbalance.JQuickGrpcLoadBalancer;
 import io.grpc.Channel;

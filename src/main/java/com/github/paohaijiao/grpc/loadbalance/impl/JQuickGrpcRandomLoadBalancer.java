@@ -1,6 +1,6 @@
 package com.github.paohaijiao.grpc.loadbalance.impl;
 
-import com.github.paohaijiao.grpc.discovery.impl.JQuickGrpcServiceInstance;
+import com.github.paohaijiao.grpc.domain.JQuickGrpcServiceInstance;
 import com.github.paohaijiao.grpc.loadbalance.JQuickGrpcLoadBalancer;
 
 import java.security.SecureRandom;

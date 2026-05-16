@@ -1,6 +1,6 @@
 package com.github.paohaijiao.grpc.discovery;
 
-import com.github.paohaijiao.grpc.discovery.impl.JQuickGrpcServiceInstance;
+import com.github.paohaijiao.grpc.domain.JQuickGrpcServiceInstance;
 
 import java.util.List;
 
