@@ -14,6 +14,7 @@
         <maven.compiler.target>8</maven.compiler.target>
         <javelin.version>1.8.1</javelin.version>
 		<grpc.version>1.80.0</grpc.version>
+        <protobuf.version>3.21.12</protobuf.version>
     </properties>
     <dependencies>
         <dependency>
@@ -160,6 +161,12 @@
             <artifactId>curator-x-discovery</artifactId>
             <version>5.5.0</version>
         </dependency>
+        <dependency>
+            <groupId>com.google.errorprone</groupId>
+            <artifactId>error_prone_annotations</artifactId>
+            <version>2.23.0</version>
+            <scope>provided</scope>
+        </dependency>
     </dependencies>
 
     <description>
@@ -184,13 +191,20 @@
         <url>https://github.com/paohaijiao/jquick-grpc</url>
     </scm>
     <build>
+        <extensions>
+            <extension>
+                <groupId>kr.motd.maven</groupId>
+                <artifactId>os-maven-plugin</artifactId>
+                <version>1.7.1</version>
+            </extension>
+        </extensions>
         <plugins>
             <plugin>
                 <groupId>org.xolstice.maven.plugins</groupId>
                 <artifactId>protobuf-maven-plugin</artifactId>
                 <version>0.6.1</version>
                 <configuration>
-                    <protocArtifact>com.google.protobuf:protoc:4.30.2:exe:${os.detected.classifier}</protocArtifact>
+                    <protocArtifact>com.google.protobuf:protoc:${protobuf.version}:exe:${os.detected.classifier}</protocArtifact>
                     <pluginId>grpc-java</pluginId>
                     <pluginArtifact>io.grpc:protoc-gen-grpc-java:${grpc.version}:exe:${os.detected.classifier}</pluginArtifact>
                 </configuration>
