@@ -58,7 +58,6 @@ public class JQuickGrpcNettyServer implements JQuickGrpcServer {
         this.server = builder.build();
         this.running = true;
         server.start();
-
         Runtime.getRuntime().addShutdownHook(new Thread(() -> {// 添加 shutdown hook
             System.out.println("Shutting down gRPC server...");
             JQuickGrpcNettyServer.this.stop();

@@ -1,7 +1,5 @@
 package com.github.paohaijiao.grpc.loadbalance.impl;
 
-// loadbalance/impl/JQuickGrpcLeastConnectionLoadBalancer.java
-
 import com.github.paohaijiao.grpc.discovery.impl.JQuickGrpcServiceInstance;
 import com.github.paohaijiao.grpc.loadbalance.JQuickGrpcLoadBalancer;
 
@@ -47,8 +45,6 @@ public class JQuickGrpcLeastConnectionLoadBalancer implements JQuickGrpcLoadBala
     public void incrementConnection(JQuickGrpcServiceInstance instance) {
         activeConnections.computeIfAbsent(instance.getAddress(), k -> new AtomicInteger(0))
                 .incrementAndGet();
-
-        // 更新实例指标
         if (instance.getMetrics() != null) {
             instance.getMetrics().setActiveRequests(getActiveConnections(instance));
         }
@@ -62,7 +58,6 @@ public class JQuickGrpcLeastConnectionLoadBalancer implements JQuickGrpcLoadBala
         if (counter != null) {
             counter.decrementAndGet();
         }
-
         if (instance.getMetrics() != null) {
             instance.getMetrics().setActiveRequests(getActiveConnections(instance));
         }

@@ -16,9 +16,7 @@ public class JQuickGrpcServerInterceptor implements ServerInterceptor {
     public <ReqT, RespT> ServerCall.Listener<ReqT> interceptCall(ServerCall<ReqT, RespT> call, Metadata headers, ServerCallHandler<ReqT, RespT> next) {
         String traceId = headers.get(TRACE_ID_KEY);
         String userId = headers.get(USER_ID_KEY);
-        JQuickGrpcContext context = JQuickGrpcContext.create()
-                .withTraceId(traceId)
-                .withUserId(userId);
+        JQuickGrpcContext context = JQuickGrpcContext.create().withTraceId(traceId).withUserId(userId);
         try (JQuickGrpcContext.Scope ignored = context.attach()) {
             return next.startCall(call, headers);
         }

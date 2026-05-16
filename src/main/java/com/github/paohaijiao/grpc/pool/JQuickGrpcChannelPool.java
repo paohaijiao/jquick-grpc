@@ -30,12 +30,10 @@ public class JQuickGrpcChannelPool {
             public ManagedChannel create() throws Exception {
                 return createChannel(address, config);
             }
-
             @Override
             public PooledObject<ManagedChannel> wrap(ManagedChannel channel) {
                 return new DefaultPooledObject<>(channel);
             }
-
             @Override
             public void destroyObject(PooledObject<ManagedChannel> p) {
                 p.getObject().shutdown();
@@ -45,7 +43,6 @@ public class JQuickGrpcChannelPool {
                     Thread.currentThread().interrupt();
                 }
             }
-
             @Override
             public boolean validateObject(PooledObject<ManagedChannel> p) {
                 return !p.getObject().isShutdown() && !p.getObject().isTerminated();
