@@ -45,6 +45,8 @@ public class JQuickGrpcContext {
     }
 
     public Scope attach() {
+        //  detach must be invoked on the context instance that performed attach();
+        // using Context.current() at close time detaches the wrong context when nested
         return new Scope(context.attach());
     }
 
@@ -57,7 +59,7 @@ public class JQuickGrpcContext {
 
         @Override
         public void close() {
-            Context.current().detach(previous);
+            context.detach(previous);
         }
     }
 }

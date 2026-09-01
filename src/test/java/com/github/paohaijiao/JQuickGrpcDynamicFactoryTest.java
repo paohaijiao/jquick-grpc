@@ -5,6 +5,7 @@ import com.github.paohaijiao.grpc.config.JQuickGrpcServerConfig;
 import com.github.paohaijiao.grpc.domain.JQuickGrpcServiceInstance;
 import com.github.paohaijiao.grpc.factory.JQuickGrpcDynamicFactory;
 import com.github.paohaijiao.grpc.loadbalance.JQuickGrpcLoadBalancer;
+import com.github.paohaijiao.grpc.loadbalance.impl.JQuickGrpcRoundRobinLoadBalancer;
 import com.github.paohaijiao.grpc.server.JQuickGrpcServer;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -47,7 +48,8 @@ public class JQuickGrpcDynamicFactoryTest {
     void testCreatePooledClient() {
         JQuickGrpcClientConfig config = new JQuickGrpcClientConfig();
         config.setClientType("pooled");
-        JQuickGrpcClient client = factory.createClient(config, null, null);
+        // 客户端实现强制要求非空负载均衡器 / client implementations require a non-null load balancer
+        JQuickGrpcClient client = factory.createClient(config, null, new JQuickGrpcRoundRobinLoadBalancer());
         assertNotNull(client);
         assertEquals("pooled", client.getClientType());
         assertFalse(client.isClosed());
@@ -57,7 +59,7 @@ public class JQuickGrpcDynamicFactoryTest {
     void testCreateSingleClient() {
         JQuickGrpcClientConfig config = new JQuickGrpcClientConfig();
         config.setClientType("single");
-        JQuickGrpcClient client = factory.createClient(config, null, null);
+        JQuickGrpcClient client = factory.createClient(config, null, new JQuickGrpcRoundRobinLoadBalancer());
         assertNotNull(client);
         assertEquals("single", client.getClientType());
     }
@@ -104,7 +106,7 @@ public class JQuickGrpcDynamicFactoryTest {
     @Test
     void testGetCurrentStats() {
         JQuickGrpcClientConfig clientConfig = new JQuickGrpcClientConfig();
-        factory.createClient(clientConfig, null, null);
+        factory.createClient(clientConfig, null, new JQuickGrpcRoundRobinLoadBalancer());
         Map<String, Object> stats = factory.getCurrentStats();
         assertNotNull(stats);
         assertTrue(stats.containsKey("activeServerRunning"));

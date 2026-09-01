@@ -27,8 +27,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
 /**
- * 基于内存 Map 的本地服务发现实现
- * 适用于开发、测试环境，无需外部依赖
+ * Local service discovery implementation based on an in‑memory Map.
+ * For use in development and testing environments; no external dependencies required.
  */
 public class JQuickGrpcLocalDiscovery implements JQuickGrpcServiceDiscovery {
 
@@ -72,7 +72,6 @@ public class JQuickGrpcLocalDiscovery implements JQuickGrpcServiceDiscovery {
         List<JQuickGrpcServiceInstance> healthyInstances = instances.stream()
                 .filter(JQuickGrpcServiceInstance::isHealthy)
                 .collect(Collectors.toList());
-
         log.debug("Found {} healthy instances for service: {}", healthyInstances.size(), serviceName);
         return healthyInstances;
     }
@@ -119,23 +118,16 @@ public class JQuickGrpcLocalDiscovery implements JQuickGrpcServiceDiscovery {
         log.info("Local discovery closed");
     }
 
-    /**
-     * 注册服务实例
-     */
+
     public void registerService(String serviceName, String host, int port) {
         registerService(serviceName, host, port, 1, null);
     }
 
-    /**
-     * 注册服务实例
-     */
+
     public void registerService(String serviceName, String host, int port, int weight) {
         registerService(serviceName, host, port, weight, null);
     }
 
-    /**
-     * 注册服务实例（带 Metrics）
-     */
     public void registerService(String serviceName, String host, int port, int weight, JQuickServiceInstanceMetrics metrics) {
         if (closed.get()) {
             log.warn("Cannot register service, discovery is closed");
@@ -159,9 +151,6 @@ public class JQuickGrpcLocalDiscovery implements JQuickGrpcServiceDiscovery {
         notifyChange(serviceName);
     }
 
-    /**
-     * 注销服务实例
-     */
     public void unregisterService(String serviceName, String host, int port) {
         String instanceId = generateInstanceId(serviceName, host, port);
         if (!instanceToServiceMap.containsKey(instanceId)) {
@@ -181,9 +170,6 @@ public class JQuickGrpcLocalDiscovery implements JQuickGrpcServiceDiscovery {
         notifyChange(serviceName);
     }
 
-    /**
-     * 注销所有服务
-     */
     public void unregisterAllServices() {
         log.info("Unregistering all services...");
         Set<String> serviceNames = new HashSet<>(serviceMap.keySet());
@@ -202,9 +188,6 @@ public class JQuickGrpcLocalDiscovery implements JQuickGrpcServiceDiscovery {
         log.info("All services unregistered");
     }
 
-    /**
-     * 更新健康状态
-     */
     public void updateHealth(String serviceName, String host, int port, boolean healthy) {
         String instanceId = generateInstanceId(serviceName, host, port);
         List<JQuickGrpcServiceInstance> instances = serviceMap.get(serviceName);
@@ -221,9 +204,7 @@ public class JQuickGrpcLocalDiscovery implements JQuickGrpcServiceDiscovery {
         log.warn("Instance not found for health update: {}", instanceId);
     }
 
-    /**
-     * 更新 Metrics
-     */
+
     public void updateMetrics(String serviceName, String host, int port, JQuickServiceInstanceMetrics metrics) {
         String instanceId = generateInstanceId(serviceName, host, port);
         List<JQuickGrpcServiceInstance> instances = serviceMap.get(serviceName);
@@ -240,9 +221,7 @@ public class JQuickGrpcLocalDiscovery implements JQuickGrpcServiceDiscovery {
         log.warn("Instance not found for metrics update: {}", instanceId);
     }
 
-    /**
-     * 更新权重
-     */
+
     public void updateWeight(String serviceName, String host, int port, int weight) {
         List<JQuickGrpcServiceInstance> instances = serviceMap.get(serviceName);
         if (instances != null) {
@@ -257,16 +236,11 @@ public class JQuickGrpcLocalDiscovery implements JQuickGrpcServiceDiscovery {
         }
     }
 
-    /**
-     * 获取所有注册的服务名称
-     */
+
     public Set<String> getAllServiceNames() {
         return new HashSet<>(serviceMap.keySet());
     }
 
-    /**
-     * 获取指定服务的所有实例（包括不健康的）
-     */
     public List<JQuickGrpcServiceInstance> getAllInstances(String serviceName) {
         List<JQuickGrpcServiceInstance> instances = serviceMap.get(serviceName);
         if (instances == null) {
@@ -275,9 +249,7 @@ public class JQuickGrpcLocalDiscovery implements JQuickGrpcServiceDiscovery {
         return new ArrayList<>(instances);
     }
 
-    /**
-     * 获取统计信息
-     */
+
     public Map<String, Object> getStats() {
         Map<String, Object> stats = new HashMap<>();
         stats.put("serviceCount", serviceMap.size());
@@ -292,9 +264,7 @@ public class JQuickGrpcLocalDiscovery implements JQuickGrpcServiceDiscovery {
         return stats;
     }
 
-    /**
-     * 清空所有数据
-     */
+
     public void clear() {
         log.info("Clearing all service data...");
         serviceMap.clear();
@@ -313,11 +283,33 @@ public class JQuickGrpcLocalDiscovery implements JQuickGrpcServiceDiscovery {
     }
 
     /**
+     * 获取需要通知的监听器：精确匹配 + 通配符 "*" 订阅者。
+     * 修复：客户端通过 subscribe("*", ...) 订阅所有服务变更，
+     * 原实现 notifyChange 只查找精确匹配的 serviceName，通配符订阅者永远收不到通知。
+     * <p>
+     * Collects listeners to notify: exact-name subscribers plus wildcard ("*") subscribers.
+     *  wildcard subscribers were never notified because notifyChange only looked up
+     * the exact service name.
+     */
+    private List<ServiceChangeListener> getNotifiableListeners(String serviceName) {
+        List<ServiceChangeListener> result = new ArrayList<>();
+        List<ServiceChangeListener> exact = listeners.get(serviceName);
+        if (exact != null) {
+            result.addAll(exact);
+        }
+        List<ServiceChangeListener> wildcard = listeners.get("*");
+        if (wildcard != null) {
+            result.addAll(wildcard);
+        }
+        return result;
+    }
+
+    /**
      * 通知服务变更
      */
     private void notifyChange(String serviceName) {
-        List<ServiceChangeListener> serviceListeners = listeners.get(serviceName);
-        if (serviceListeners == null || serviceListeners.isEmpty()) {
+        List<ServiceChangeListener> serviceListeners = getNotifiableListeners(serviceName);
+        if (serviceListeners.isEmpty()) {
             return;
         }
         executor.submit(() -> {

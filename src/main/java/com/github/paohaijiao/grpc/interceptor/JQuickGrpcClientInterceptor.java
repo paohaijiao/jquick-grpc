@@ -7,6 +7,7 @@ import io.grpc.*;
 public class JQuickGrpcClientInterceptor implements ClientInterceptor {
 
     private static final Metadata.Key<String> TRACE_ID_KEY = Metadata.Key.of("x-trace-id", Metadata.ASCII_STRING_MARSHALLER);
+
     private static final Metadata.Key<String> USER_ID_KEY = Metadata.Key.of("x-user-id", Metadata.ASCII_STRING_MARSHALLER);
 
     @Override
@@ -14,7 +15,6 @@ public class JQuickGrpcClientInterceptor implements ClientInterceptor {
         return new ForwardingClientCall.SimpleForwardingClientCall<ReqT, RespT>(next.newCall(method, callOptions)) {
             @Override
             public void start(Listener<RespT> responseListener, Metadata headers) {
-                // 传递上下文元数据
                 String traceId = JQuickGrpcContext.getTraceId();
                 if (traceId != null) {
                     headers.put(TRACE_ID_KEY, traceId);

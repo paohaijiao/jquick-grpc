@@ -1,5 +1,4 @@
 package com.github.paohaijiao;
-// JQuickGrpcHealthStatusManagerTest.java
 
 import com.github.paohaijiao.grpc.health.JQuickGrpcHealthStatusManager;
 import org.junit.jupiter.api.Test;

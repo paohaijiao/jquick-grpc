@@ -20,11 +20,17 @@ public class JQuickGrpcChannelPool {
     public JQuickGrpcChannelPool(String address, JQuickGrpcClientConfig config) {
         this.address = address;
         GenericObjectPoolConfig poolConfig = new GenericObjectPoolConfig();
+
         poolConfig.setMaxTotal(config.getMaxConnections());
+
         poolConfig.setMaxIdle(config.getMaxIdle());
+
         poolConfig.setMinIdle(config.getMinIdle());
+
         poolConfig.setTestOnBorrow(true);
+
         poolConfig.setTestOnReturn(true);
+
         this.pool = new GenericObjectPool<>(new BasePooledObjectFactory<ManagedChannel>() {
             @Override
             public ManagedChannel create() throws Exception {
@@ -36,11 +42,16 @@ public class JQuickGrpcChannelPool {
             }
             @Override
             public void destroyObject(PooledObject<ManagedChannel> p) {
-                p.getObject().shutdown();
+                ManagedChannel channel = p.getObject();
+                channel.shutdown();
                 try {
-                    p.getObject().awaitTermination(5, TimeUnit.SECONDS);
+                    //  force shutdown after graceful timeout, otherwise Netty threads/connections leak
+                    if (!channel.awaitTermination(5, TimeUnit.SECONDS)) {
+                        channel.shutdownNow();
+                    }
                 } catch (InterruptedException e) {
                     Thread.currentThread().interrupt();
+                    channel.shutdownNow();
                 }
             }
             @Override
@@ -51,9 +62,18 @@ public class JQuickGrpcChannelPool {
     }
 
     private ManagedChannel createChannel(String address, JQuickGrpcClientConfig config) {
+        //  validate address format upfront with a clear error message
         String[] parts = address.split(":");
-        String host = parts[0];
-        int port = Integer.parseInt(parts[1]);
+        if (parts.length != 2 || parts[0].trim().isEmpty()) {
+            throw new IllegalArgumentException("Invalid gRPC address: " + address + ", expected format host:port");
+        }
+        int port;
+        try {
+            port = Integer.parseInt(parts[1].trim());
+        } catch (NumberFormatException e) {
+            throw new IllegalArgumentException("Invalid gRPC port in address: " + address, e);
+        }
+        String host = parts[0].trim();
         NettyChannelBuilder builder = NettyChannelBuilder.forAddress(host, port);
         if (config.isUsePlaintext()) {
             builder.usePlaintext();
@@ -75,6 +95,9 @@ public class JQuickGrpcChannelPool {
     }
 
     public void close() {
+        //  GenericObjectPool.close() does not destroy idle objects; clear() first
+        // so destroyObject shuts down all idle Netty channels
+        pool.clear();
         pool.close();
     }
 

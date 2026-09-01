@@ -38,14 +38,12 @@ class JQuickGrpcLocalDiscoveryTest {
 
     @BeforeAll
     static void setUpAll() {
-        log.info("========== Starting Local Discovery Tests ==========");
         discovery = new JQuickGrpcLocalDiscovery();
         log.info("Local discovery created");
     }
 
     @AfterAll
     static void tearDownAll() {
-        log.info("========== Cleaning up tests ==========");
         if (discovery != null) {
             discovery.unregisterAllServices();
             discovery.close();
@@ -60,7 +58,6 @@ class JQuickGrpcLocalDiscoveryTest {
 
     @Test
     void testRegisterService() {
-        log.info("=== 测试服务注册 ===");
         discovery.registerService("test-service", "192.168.1.100", 9090, 5);
         List<JQuickGrpcServiceInstance> instances = discovery.getInstances("test-service");
         assertNotNull(instances);
@@ -75,7 +72,6 @@ class JQuickGrpcLocalDiscoveryTest {
 
     @Test
     void testRegisterMultipleInstances() {
-        log.info("=== 测试注册多个实例 ===");
         String serviceName = "test-multi-service";
         discovery.registerService(serviceName, "192.168.1.101", 9091, 1);
         discovery.registerService(serviceName, "192.168.1.102", 9092, 2);
@@ -92,7 +88,6 @@ class JQuickGrpcLocalDiscoveryTest {
 
     @Test
     void testRegisterDifferentServices() {
-        log.info("=== 测试注册多个不同的服务 ===");
         discovery.registerService("service-a", "192.168.1.101", 9091, 1);
         discovery.registerService("service-b", "192.168.1.102", 9092, 2);
         discovery.registerService("service-c", "192.168.1.103", 9093, 3);
@@ -106,7 +101,6 @@ class JQuickGrpcLocalDiscoveryTest {
 
     @Test
     void testRegisterWithMetrics() {
-        log.info("=== 测试带 Metrics 的服务注册 ===");
         JQuickServiceInstanceMetrics metrics = new JQuickServiceInstanceMetrics();
         metrics.setCpuUsage(45.5);
         metrics.setMemoryUsage(60.2);
@@ -122,7 +116,6 @@ class JQuickGrpcLocalDiscoveryTest {
 
     @Test
     void testGetInstances() {
-        log.info("=== 测试服务发现 ===");
         discovery.registerService("test-discovery-service", "10.0.0.1", 8080, 10);
         List<JQuickGrpcServiceInstance> instances = discovery.getInstances("test-discovery-service");
         assertEquals(1, instances.size());
@@ -133,14 +126,15 @@ class JQuickGrpcLocalDiscoveryTest {
 
     @Test
     void testServiceChangeListener() throws InterruptedException {
-        log.info("=== 测试服务变更监听 ===");
         String serviceName = "test-watch-service";
         CountDownLatch latch = new CountDownLatch(1);
         AtomicReference<List<JQuickGrpcServiceInstance>> receivedInstances = new AtomicReference<>();
         discovery.subscribe(serviceName, (name, instances) -> {
             receivedInstances.set(instances);
-            log.info(" 收到变更通知: {} 个实例", instances.size());
-            latch.countDown();
+            // subscribe() fires an initial empty callback; count down only on a non-empty snapshot
+            if (!instances.isEmpty()) {
+                latch.countDown();
+            }
         });
         discovery.registerService(serviceName, "192.168.1.10", 8010, 1);
         boolean received = latch.await(5, TimeUnit.SECONDS);
@@ -152,7 +146,6 @@ class JQuickGrpcLocalDiscoveryTest {
 
     @Test
     void testUpdateHealth() {
-        log.info("=== 测试健康状态更新 ===");
         String serviceName = "test-health-service";
         String host = "192.168.1.50";
         int port = 7070;
@@ -176,7 +169,6 @@ class JQuickGrpcLocalDiscoveryTest {
 
     @Test
     void testUpdateWeight() {
-        log.info("=== 测试权重更新 ===");
         String serviceName = "test-weight-service";
         String host = "192.168.1.60";
         int port = 6060;
@@ -193,7 +185,6 @@ class JQuickGrpcLocalDiscoveryTest {
 
     @Test
     void testUnregisterService() {
-        log.info("=== 测试服务注销 ===");
         String serviceName = "test-unregister-service";
         String host = "192.168.1.200";
         int port = 9500;
@@ -208,7 +199,6 @@ class JQuickGrpcLocalDiscoveryTest {
 
     @Test
     void testUnregisterAllServices() {
-        log.info("=== 测试注销所有服务 ===");
         discovery.registerService("service-1", "192.168.1.1", 8001, 1);
         discovery.registerService("service-2", "192.168.1.2", 8002, 2);
         discovery.registerService("service-3", "192.168.1.3", 8003, 3);
@@ -221,7 +211,6 @@ class JQuickGrpcLocalDiscoveryTest {
 
     @Test
     void testGetStats() {
-        log.info("=== 测试获取统计信息 ===");
         discovery.registerService("stats-service-1", "192.168.1.1", 8001, 1);
         discovery.registerService("stats-service-2", "192.168.1.2", 8002, 2);
         Map<String, Object> stats = discovery.getStats();
@@ -232,14 +221,12 @@ class JQuickGrpcLocalDiscoveryTest {
 
     @Test
     void testDuplicateRegistration() {
-        log.info("=== 测试重复注册相同实例 ===");
         String serviceName = "test-duplicate-service";
         String host = "192.168.1.1";
         int port = 10001;
         discovery.registerService(serviceName, host, port, 1);
         discovery.registerService(serviceName, host, port, 2);
         List<JQuickGrpcServiceInstance> instances = discovery.getInstances(serviceName);
-        // 应该只有1个实例，权重应该是第一次注册的值
         assertEquals(1, instances.size());
         assertEquals(1, instances.get(0).getWeight());
         log.info(" 重复注册被正确忽略");
@@ -247,7 +234,6 @@ class JQuickGrpcLocalDiscoveryTest {
 
     @Test
     void testGetNonExistentService() {
-        log.info("=== 测试获取不存在的服务 ===");
         List<JQuickGrpcServiceInstance> instances = discovery.getInstances("non-existent-service");
         assertNotNull(instances);
         assertTrue(instances.isEmpty());

@@ -35,8 +35,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 
 /**
- * Etcd 服务发现实现
- * 支持服务注册、发现、健康检查、Metrics 上报
+ * Etcd service discovery.
+ * support service registration, discovery, health check, metrics reporting.
  */
 public class JQuickGrpcEtcdDiscovery implements JQuickGrpcServiceDiscovery {
 
@@ -143,7 +143,7 @@ public class JQuickGrpcEtcdDiscovery implements JQuickGrpcServiceDiscovery {
     }
 
     /**
-     * 确保客户端已初始化（用于可能未初始化的情况）
+     * ensure client has initialized.
      */
     private void ensureInitialized() {
         if (!initialized.get() && !closed.get()) {
@@ -190,11 +190,9 @@ public class JQuickGrpcEtcdDiscovery implements JQuickGrpcServiceDiscovery {
         }
         listeners.computeIfAbsent(serviceName, k -> new ArrayList<>()).add(listener);
         log.info("Subscribed to service changes: {}", serviceName);
-        // 如果还没有为该服务创建 watcher，则创建
         if (!watchers.containsKey(serviceName)) {
             createWatcher(serviceName);
         }
-        // 立即触发一次，推送当前实例列表
         List<JQuickGrpcServiceInstance> instances = getInstances(serviceName);
         listener.onChange(serviceName, instances);
     }
@@ -205,7 +203,6 @@ public class JQuickGrpcEtcdDiscovery implements JQuickGrpcServiceDiscovery {
         if (serviceListeners != null) {
             serviceListeners.remove(listener);
             if (serviceListeners.isEmpty()) {
-                // 没有监听者了，关闭 watcher
                 Watch.Watcher watcher = watchers.remove(serviceName);
                 if (watcher != null) {
                     watcher.close();
@@ -221,13 +218,10 @@ public class JQuickGrpcEtcdDiscovery implements JQuickGrpcServiceDiscovery {
             return;
         }
         log.info("Closing Etcd discovery...");
-        // 关闭 keep alive 线程池
         if (keepAliveExecutor != null && !keepAliveExecutor.isShutdown()) {
             keepAliveExecutor.shutdown();
         }
-        // 注销服务注册（如果有）
         unregisterService();
-        // 关闭所有 watcher
         watchers.values().forEach(watcher -> {
             try {
                 watcher.close();
@@ -236,11 +230,9 @@ public class JQuickGrpcEtcdDiscovery implements JQuickGrpcServiceDiscovery {
             }
         });
         watchers.clear();
-        // 关闭客户端
         if (etcdClient != null) {
             etcdClient.close();
         }
-        // 关闭线程池
         executor.shutdown();
         try {
             executor.awaitTermination(5, TimeUnit.SECONDS);
@@ -272,7 +264,6 @@ public class JQuickGrpcEtcdDiscovery implements JQuickGrpcServiceDiscovery {
                         public void onError(Throwable throwable) {
                             log.error("Watch error for service: {}", serviceName, throwable);
                             watchers.remove(serviceName);
-                            // 重试创建 watcher
                             executor.submit(() -> {
                                 try {
                                     Thread.sleep(5000);
@@ -306,9 +297,10 @@ public class JQuickGrpcEtcdDiscovery implements JQuickGrpcServiceDiscovery {
         log.debug("Watch response received for service: {}", serviceName);
         List<JQuickGrpcServiceInstance> newInstances = getInstances(serviceName);
         instanceCache.put(serviceName, new ArrayList<>(newInstances));
-        // 通知所有监听器
-        List<ServiceChangeListener> serviceListeners = listeners.get(serviceName);
-        if (serviceListeners != null) {
+        //  include wildcard ("*") subscribers, otherwise clients subscribed with "*"
+        // never receive change notifications
+        List<ServiceChangeListener> serviceListeners = getNotifiableListeners(serviceName);
+        if (serviceListeners != null && !serviceListeners.isEmpty()) {
             for (ServiceChangeListener listener : serviceListeners) {
                 try {
                     listener.onChange(serviceName, newInstances);
@@ -321,22 +313,29 @@ public class JQuickGrpcEtcdDiscovery implements JQuickGrpcServiceDiscovery {
     }
 
     /**
-     * 注册服务实例（供服务端使用）
+     * Collects listeners to notify: exact-name subscribers plus wildcard ("*") subscribers.
      */
+    private List<ServiceChangeListener> getNotifiableListeners(String serviceName) {
+        List<ServiceChangeListener> result = new ArrayList<>();
+        List<ServiceChangeListener> exact = listeners.get(serviceName);
+        if (exact != null) {
+            result.addAll(exact);
+        }
+        List<ServiceChangeListener> wildcard = listeners.get("*");
+        if (wildcard != null) {
+            result.addAll(wildcard);
+        }
+        return result;
+    }
+
     public void registerService(String serviceName, String host, int port) {
         registerService(serviceName, host, port, 1, null);
     }
 
-    /**
-     * 注册服务实例（供服务端使用）
-     */
     public void registerService(String serviceName, String host, int port, int weight) {
         registerService(serviceName, host, port, weight, null);
     }
 
-    /**
-     * 注册服务实例（包含 Metrics）
-     */
     public void registerService(String serviceName, String host, int port, int weight, JQuickServiceInstanceMetrics metrics) {
         if (registeredInstanceId != null) {
             log.warn("Service already registered: {}", registeredServiceName);
@@ -344,9 +343,7 @@ public class JQuickGrpcEtcdDiscovery implements JQuickGrpcServiceDiscovery {
         }
         try {
             ensureInitialized();
-            // 创建 lease
             long leaseId = leaseClient.grant(leaseTtlSeconds).get(5, TimeUnit.SECONDS).getID();
-            // 创建服务实例
             JQuickGrpcServiceInstance instance = new JQuickGrpcServiceInstance(serviceName, host, port);
             instance.setWeight(weight);
             instance.setHealthy(true);
@@ -356,9 +353,7 @@ public class JQuickGrpcEtcdDiscovery implements JQuickGrpcServiceDiscovery {
             String instanceId = UUID.randomUUID().toString();
             String key = getInstancePath(serviceName, instanceId);
             String value = serializeInstance(instance);
-            // 注册到 etcd（带 lease）
             kvClient.put(ByteSequence.from(key, StandardCharsets.UTF_8), ByteSequence.from(value, StandardCharsets.UTF_8), PutOption.newBuilder().withLeaseId(leaseId).build()).get(5, TimeUnit.SECONDS);
-            // 启动 keep alive
             startKeepAlive(leaseId, serviceName);
             registeredInstanceId = instanceId;
             registeredServiceName = serviceName;
@@ -379,6 +374,8 @@ public class JQuickGrpcEtcdDiscovery implements JQuickGrpcServiceDiscovery {
      */
     private void startKeepAlive(long leaseId, String serviceName) {
         keepAliveExecutor = Executors.newSingleThreadScheduledExecutor();
+        //  guard against zero period when leaseTtlSeconds < 3
+        long periodSeconds = Math.max(1, leaseTtlSeconds / 3);
         keepAliveExecutor.scheduleAtFixedRate(() -> {
             try {
                 if (!closed.get() && initialized.get() && leaseClient != null) {
@@ -388,7 +385,7 @@ public class JQuickGrpcEtcdDiscovery implements JQuickGrpcServiceDiscovery {
             } catch (Exception e) {
                 log.warn("Failed to send keep alive for service: {}", serviceName, e);
             }
-        }, 5, leaseTtlSeconds / 3, TimeUnit.SECONDS);
+        }, 5, periodSeconds, TimeUnit.SECONDS);
     }
 
     /**
@@ -430,12 +427,10 @@ public class JQuickGrpcEtcdDiscovery implements JQuickGrpcServiceDiscovery {
             if (initialized.get() && kvClient != null) {
                 String key = getInstancePath(registeredServiceName, registeredInstanceId);
                 kvClient.delete(ByteSequence.from(key, StandardCharsets.UTF_8)).get(3, TimeUnit.SECONDS);
-                // 取消 lease
                 if (leaseClient != null && registeredLeaseId != 0) {
                     leaseClient.revoke(registeredLeaseId).get(3, TimeUnit.SECONDS);
                 }
             }
-            // 停止 keep alive
             if (keepAliveExecutor != null && !keepAliveExecutor.isShutdown()) {
                 keepAliveExecutor.shutdown();
             }
@@ -443,15 +438,16 @@ public class JQuickGrpcEtcdDiscovery implements JQuickGrpcServiceDiscovery {
         } catch (Exception e) {
             log.error("Failed to unregister service", e);
         } finally {
+            //  remove the stale lease mapping to avoid a memory leak
+            if (registeredInstanceId != null) {
+                leaseIds.remove(registeredInstanceId);
+            }
             registeredInstanceId = null;
             registeredServiceName = null;
             registeredLeaseId = 0;
         }
     }
 
-    /**
-     * 更新服务实例的健康状态
-     */
     public void updateHealth(boolean healthy) {
         if (registeredInstanceId == null || !initialized.get()) {
             log.warn("Cannot update health, instance not registered");
@@ -483,9 +479,6 @@ public class JQuickGrpcEtcdDiscovery implements JQuickGrpcServiceDiscovery {
         return rootPath + "/" + serviceName + "/" + instanceId;
     }
 
-    /**
-     * 序列化实例 - 包含完整的 serviceName 和 Metrics
-     */
     private String serializeInstance(JQuickGrpcServiceInstance instance) {
         Map<String, Object> data = new LinkedHashMap<>();
         data.put("serviceName", instance.getServiceName());
@@ -506,9 +499,6 @@ public class JQuickGrpcEtcdDiscovery implements JQuickGrpcServiceDiscovery {
         return gson.toJson(data);
     }
 
-    /**
-     * 解析实例 - 包含完整的 serviceName 和 Metrics
-     */
     private JQuickGrpcServiceInstance parseInstance(String json) {
         try {
             Type type = new TypeToken<Map<String, Object>>() {}.getType();
@@ -521,7 +511,6 @@ public class JQuickGrpcEtcdDiscovery implements JQuickGrpcServiceDiscovery {
             JQuickGrpcServiceInstance instance = new JQuickGrpcServiceInstance(serviceName, host, port);
             instance.setWeight(weight);
             instance.setHealthy(healthy);
-            // 解析 Metrics
             @SuppressWarnings("unchecked")
             Map<String, Object> metricsData = (Map<String, Object>) data.get("metrics");
             if (metricsData != null) {

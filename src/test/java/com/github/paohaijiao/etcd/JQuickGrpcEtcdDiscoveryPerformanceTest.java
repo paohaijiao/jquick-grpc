@@ -25,6 +25,11 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
+/**
+ * Integration test: requires an external etcd server; disabled by default so CI and
+ * local builds without etcd stay green. Remove @Disabled to run against a live cluster.
+ */
+@Disabled("Requires an external etcd server / 需要外部 etcd 服务器")
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 class JQuickGrpcEtcdDiscoveryPerformanceTest {
 

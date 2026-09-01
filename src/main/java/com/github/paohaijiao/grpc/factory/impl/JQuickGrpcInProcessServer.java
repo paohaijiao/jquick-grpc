@@ -4,18 +4,18 @@ import com.github.paohaijiao.grpc.config.JQuickGrpcServerConfig;
 import com.github.paohaijiao.grpc.server.JQuickGrpcServer;
 import io.grpc.BindableService;
 import io.grpc.Server;
+import io.grpc.ServerInterceptor;
 import io.grpc.health.v1.HealthCheckResponse.ServingStatus;
 import io.grpc.inprocess.InProcessServerBuilder;
 import io.grpc.protobuf.services.HealthStatusManager;
 import io.grpc.protobuf.services.ProtoReflectionService;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
 
-/**
- * 进程内服务器，用于单元测试
- * 无网络开销，不需要实际端口
- */
+
 public class JQuickGrpcInProcessServer implements JQuickGrpcServer {
 
     private final String serverName;
@@ -23,6 +23,8 @@ public class JQuickGrpcInProcessServer implements JQuickGrpcServer {
     private final JQuickGrpcServerConfig config;
 
     private final Map<String, BindableService> services;
+
+    private final List<ServerInterceptor> interceptors = new CopyOnWriteArrayList<>();
 
     private final HealthStatusManager healthManager;
 
@@ -53,11 +55,14 @@ public class JQuickGrpcInProcessServer implements JQuickGrpcServer {
         for (Map.Entry<String, BindableService> entry : services.entrySet()) {// 注册业务服务
             builder.addService(entry.getValue());
         }
-        builder.addService(healthManager.getHealthService());// 注册健康检查和反射服务
+        for (ServerInterceptor interceptor : interceptors) {
+            builder.intercept(interceptor);
+        }
+        builder.addService(healthManager.getHealthService());
         builder.addService(ProtoReflectionService.newInstance());
         this.server = builder.build();
         this.running = true;
-        for (String serviceName : services.keySet()) {// 设置健康状态
+        for (String serviceName : services.keySet()) {
             healthManager.setStatus(serviceName, ServingStatus.SERVING);
         }
         healthManager.setStatus("", ServingStatus.SERVING);
@@ -123,5 +128,12 @@ public class JQuickGrpcInProcessServer implements JQuickGrpcServer {
 
     public String getServerName() {
         return serverName;
+    }
+
+    /**
+     * Registers a server interceptor (must be called before start).
+     */
+    public void addInterceptor(ServerInterceptor interceptor) {
+        interceptors.add(interceptor);
     }
 }

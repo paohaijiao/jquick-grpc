@@ -29,6 +29,13 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+/**
+ * 集成测试：依赖外部 Nacos 服务器（通过系统属性或默认 endpoints 配置），
+ * 默认禁用以避免 CI / 本地无 Nacos 环境跑失败；需要时手动移除 @Disabled 运行。
+ * Integration test: requires an external Nacos server; disabled by default so CI and
+ * local builds without Nacos stay green. Remove @Disabled to run against a live cluster.
+ */
+@Disabled("Requires an external Nacos server / 需要外部 Nacos 服务器")
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 class JQuickGrpcNacosDiscoveryTest {
 
@@ -40,14 +47,12 @@ class JQuickGrpcNacosDiscoveryTest {
 
     @BeforeAll
     static void setUpAll() {
-        log.info("========== Starting Nacos Discovery Tests ==========");
         discovery = new JQuickGrpcNacosDiscovery(NACOS_SERVER, NACOS_USERNAME, NACOS_PASSWORD);
         log.info("Nacos discovery created");
     }
 
     @AfterAll
     static void tearDownAll() {
-        log.info("========== Cleaning up tests ==========");
         if (discovery != null) {
             discovery.unregisterAllServices();
             discovery.close();
@@ -95,7 +100,6 @@ class JQuickGrpcNacosDiscoveryTest {
     @Order(2)
     @DisplayName("2. 测试注册多个不同的服务")
     void testRegisterMultipleDifferentServices() throws InterruptedException {
-        log.info("=== 测试注册多个不同的服务 ===");
         discovery.registerService("service-a", "192.168.1.101", 9091, 1);
         discovery.registerService("service-b", "192.168.1.102", 9092, 2);
         discovery.registerService("service-c", "192.168.1.103", 9093, 3);
@@ -115,7 +119,6 @@ class JQuickGrpcNacosDiscoveryTest {
     @Order(3)
     @DisplayName("3. 测试注册多个实例（同一个服务）")
     void testRegisterMultipleInstancesSameService() throws InterruptedException {
-        log.info("=== 测试注册多个实例（同一个服务） ===");
         String serviceName = "test-multi-instance-service";
         discovery.registerService(serviceName, "192.168.1.101", 9091, 1);
         discovery.registerService(serviceName, "192.168.1.102", 9092, 2);
@@ -136,7 +139,6 @@ class JQuickGrpcNacosDiscoveryTest {
     @Order(4)
     @DisplayName("4. 测试带 Metrics 的服务注册")
     void testRegisterServiceWithMetrics() throws InterruptedException {
-        log.info("=== 测试带 Metrics 的服务注册 ===");
         String serviceName = "test-metrics-service";
         JQuickServiceInstanceMetrics metrics = new JQuickServiceInstanceMetrics();
         metrics.setCpuUsage(45.5);
@@ -164,8 +166,6 @@ class JQuickGrpcNacosDiscoveryTest {
     @Order(5)
     @DisplayName("5. 测试服务发现")
     void testGetInstances() throws InterruptedException {
-        log.info("=== 测试服务发现 ===");
-
         String serviceName = "test-discovery-service";
         String host = "10.0.0.1";
         int port = 8080;
@@ -187,7 +187,6 @@ class JQuickGrpcNacosDiscoveryTest {
     @Order(6)
     @DisplayName("6. 测试服务变更监听")
     void testServiceChangeListener() throws InterruptedException {
-        log.info("=== 测试服务变更监听 ===");
         String serviceName = "test-watch-service";
         CountDownLatch latch = new CountDownLatch(1);
         AtomicReference<List<JQuickGrpcServiceInstance>> receivedInstances = new AtomicReference<>();
@@ -208,7 +207,6 @@ class JQuickGrpcNacosDiscoveryTest {
     @Order(7)
     @DisplayName("7. 测试服务注销后变更通知")
     void testUnregisterChangeListener() throws InterruptedException {
-        log.info("=== 测试服务注销后变更通知 ===");
         String serviceName = "test-unregister-watch-service";
         String host = "192.168.1.200";
         int port = 9500;
@@ -238,7 +236,6 @@ class JQuickGrpcNacosDiscoveryTest {
     @Order(8)
     @DisplayName("8. 测试健康状态更新")
     void testUpdateHealth() throws InterruptedException {
-        log.info("=== 测试健康状态更新 ===");
         String serviceName = "test-health-service";
         String host = "192.168.1.50";
         int port = 7070;
@@ -278,7 +275,6 @@ class JQuickGrpcNacosDiscoveryTest {
     @Order(9)
     @DisplayName("9. 测试更新 Metrics")
     void testUpdateMetrics() throws InterruptedException {
-        log.info("=== 测试更新 Metrics ===");
         String serviceName = "test-update-metrics-service";
         String host = "192.168.1.101";
         int port = 9091;
@@ -326,7 +322,6 @@ class JQuickGrpcNacosDiscoveryTest {
     @Order(10)
     @DisplayName("10. 测试服务注销")
     void testUnregisterService() throws InterruptedException {
-        log.info("=== 测试服务注销 ===");
         String serviceName = "test-unregister-service";
         String host = "192.168.1.200";
         int port = 9500;
@@ -350,7 +345,6 @@ class JQuickGrpcNacosDiscoveryTest {
     @Order(11)
     @DisplayName("11. 测试注销所有服务")
     void testUnregisterAllServices() throws InterruptedException {
-        log.info("=== 测试注销所有服务 ===");
 
         discovery.registerService("service-1", "192.168.1.1", 8001, 1);
         discovery.registerService("service-2", "192.168.1.2", 8002, 2);
@@ -371,7 +365,6 @@ class JQuickGrpcNacosDiscoveryTest {
     @Order(12)
     @DisplayName("12. 测试并发注册服务")
     void testConcurrentRegister() throws InterruptedException {
-        log.info("=== 测试并发注册服务 ===");
         String serviceName = "test-concurrent-service";
         int instanceCount = 5;
         CountDownLatch latch = new CountDownLatch(instanceCount);
@@ -403,7 +396,6 @@ class JQuickGrpcNacosDiscoveryTest {
     @Order(13)
     @DisplayName("13. 测试并发获取实例")
     void testConcurrentGetInstances() throws InterruptedException {
-        log.info("=== 测试并发获取实例 ===");
         String serviceName = "test-concurrent-get-service";
         discovery.registerService(serviceName, "192.168.1.100", 10086, 1);
         Thread.sleep(2000);
@@ -446,7 +438,6 @@ class JQuickGrpcNacosDiscoveryTest {
     @Test
     @Order(15)
     void testDuplicateRegistration() throws InterruptedException {
-        log.info("=== 测试重复注册相同实例 ===");
         String serviceName = "test-duplicate-service";
         String host = "192.168.1.1";
         int port = 10001;
@@ -467,7 +458,6 @@ class JQuickGrpcNacosDiscoveryTest {
     @Order(16)
     @DisplayName("16. 测试不同服务隔离")
     void testServiceIsolation() throws InterruptedException {
-        log.info("=== 测试不同服务隔离 ===");
         String serviceA = "service-isolation-a";
         String serviceB = "service-isolation-b";
         discovery.registerService(serviceA, "10.0.0.1", 8001, 1);

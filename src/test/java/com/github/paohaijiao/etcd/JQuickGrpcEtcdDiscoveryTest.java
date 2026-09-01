@@ -29,13 +29,12 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+
 /**
- * packageName com.github.paohaijiao.etcd
- *
- * @author Martin
- * @version 1.0.0
- * @since 2026/5/16
+ * Integration test: requires an external etcd server; disabled by default so CI and
+ * local builds without etcd stay green. Remove @Disabled to run against a live cluster.
  */
+@Disabled("Requires an external etcd server / 需要外部 etcd 服务器")
 public class JQuickGrpcEtcdDiscoveryTest {
 
     private static JQuickGrpcEtcdDiscovery discovery;

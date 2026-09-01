@@ -39,7 +39,8 @@ class JQuickGrpcServerConfigTest {
         config.setCertChainFilePath("/path/to/cert.pem");
 
         assertNotNull(config.getCertChainFile());
-        assertEquals("/path/to/cert.pem", config.getCertChainFile().getPath());
+        // 使用 File 对象比较，避免 Windows/Unix 路径分隔符差异 / compare File objects to stay path-separator agnostic
+        assertEquals(new File("/path/to/cert.pem"), config.getCertChainFile());
     }
 
     @Test
@@ -48,7 +49,7 @@ class JQuickGrpcServerConfigTest {
         config.setPrivateKeyFilePath("/path/to/key.pem");
 
         assertNotNull(config.getPrivateKeyFile());
-        assertEquals("/path/to/key.pem", config.getPrivateKeyFile().getPath());
+        assertEquals(new File("/path/to/key.pem"), config.getPrivateKeyFile());
     }
 
     @Test

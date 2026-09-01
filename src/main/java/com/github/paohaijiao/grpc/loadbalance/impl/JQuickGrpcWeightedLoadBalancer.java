@@ -8,14 +8,15 @@ import java.util.List;
 import java.util.Random;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
+import java.util.stream.Collectors;
 
 /**
- * 加权负载均衡器
- * 根据服务实例的权重进行选择，权重越高被选中的概率越大
+ * Weighted Load Balancer
+ * Selects service instances based on weight; higher weight means higher probability of being selected
  * <p>
- * 支持两种算法：
- * 1. 随机加权：根据权重随机选择
- * 2. 轮询加权：平滑加权轮询算法
+ * Two algorithms are supported:
+ * 1. Weighted Random: Random selection according to weight
+ * 2. Weighted Round‑Robin: Smooth weighted round‑robin algorithm
  */
 public class JQuickGrpcWeightedLoadBalancer implements JQuickGrpcLoadBalancer {
 
@@ -40,21 +41,28 @@ public class JQuickGrpcWeightedLoadBalancer implements JQuickGrpcLoadBalancer {
         if (instances == null || instances.isEmpty()) {
             return null;
         }
-        if (instances.size() == 1) {
-            return instances.get(0);
+        //  filter unhealthy instances first so the equal-weight fast path cannot pick a dead node
+        List<JQuickGrpcServiceInstance> healthy = instances.stream()
+                .filter(JQuickGrpcServiceInstance::isHealthy)
+                .collect(Collectors.toList());
+        if (healthy.isEmpty()) {
+            return instances.get(0);//  fall back to the first instance when none is healthy
         }
-        boolean allSameWeight = checkAllSameWeight(instances);// 检查是否所有权重相同
-        if (allSameWeight) {// 如果权重相同，退化为随机选择
-            return instances.get(random.nextInt(instances.size()));
+        if (healthy.size() == 1) {
+            return healthy.get(0);
+        }
+        boolean allSameWeight = checkAllSameWeight(healthy);
+        if (allSameWeight) {
+            return healthy.get(random.nextInt(healthy.size()));
         }
 
         switch (algorithm) {
             case RANDOM:
-                return selectByRandomWeight(instances);
+                return selectByRandomWeight(healthy);
             case SMOOTH_RR:
-                return selectBySmoothWeightedRoundRobin(instances);
+                return selectBySmoothWeightedRoundRobin(healthy);
             default:
-                return selectByRandomWeight(instances);
+                return selectByRandomWeight(healthy);
         }
     }
 
@@ -64,8 +72,8 @@ public class JQuickGrpcWeightedLoadBalancer implements JQuickGrpcLoadBalancer {
     }
 
     /**
-     * 随机加权算法
-     * 根据权重比例随机选择
+     * Weighted Random Algorithm
+     * Performs random selection according to weight proportions
      */
     private JQuickGrpcServiceInstance selectByRandomWeight(List<JQuickGrpcServiceInstance> instances) {
         int totalWeight = instances.stream()
@@ -91,14 +99,14 @@ public class JQuickGrpcWeightedLoadBalancer implements JQuickGrpcLoadBalancer {
     }
 
     /**
-     * 平滑加权轮询算法（Nginx 使用的算法）
-     * 可以避免权重高的实例被连续选中
+     * Smooth weighted round‑robin algorithm (adopted by Nginx)
+     * Avoids consecutive selections of high‑weight instances
      */
     private JQuickGrpcServiceInstance selectBySmoothWeightedRoundRobin(List<JQuickGrpcServiceInstance> instances) {
-        String instancesKey = generateInstancesKey(instances);// 生成服务列表的唯一标识（用于缓存状态）
+        String instancesKey = generateInstancesKey(instances);
         SmoothWeightedRoundRobinState state = stateMap.computeIfAbsent(instancesKey, k -> new SmoothWeightedRoundRobinState());
         synchronized (state) {
-            if (state.instanceCount != instances.size()) {// 检查实例列表是否发生变化
+            if (state.instanceCount != instances.size()) {
                 state.reset();
                 state.instanceCount = instances.size();
             }
@@ -129,7 +137,7 @@ public class JQuickGrpcWeightedLoadBalancer implements JQuickGrpcLoadBalancer {
     }
 
     /**
-     * 检查是否所有权重相同
+     * Check if all weights are the same
      */
     private boolean checkAllSameWeight(List<JQuickGrpcServiceInstance> instances) {
         if (instances.isEmpty()) {
@@ -145,28 +153,34 @@ public class JQuickGrpcWeightedLoadBalancer implements JQuickGrpcLoadBalancer {
     }
 
     /**
-     * 生成实例列表的唯一标识
+     * Generates unique identifier for instance list
      */
     private String generateInstancesKey(List<JQuickGrpcServiceInstance> instances) {
         StringBuilder sb = new StringBuilder();
         for (JQuickGrpcServiceInstance instance : instances) {
-            sb.append(instance.getAddress()).append(":").append(instance.getWeight()).append(",");
+            // Include health in the key so smooth-RR state is rebuilt when instances go up/down
+            sb.append(instance.getAddress()).append(":").append(instance.getWeight())
+                    .append(":").append(instance.isHealthy()).append(",");
         }
         return sb.toString();
     }
 
     public enum Algorithm {
-        RANDOM,      // 随机加权
-        SMOOTH_RR    // 平滑加权轮询
+        RANDOM,
+        SMOOTH_RR
     }
 
     /**
-     * 平滑加权轮询状态
+     * Smooth weighted round‑robin state
      */
     private static class SmoothWeightedRoundRobinState {
+
         final ConcurrentMap<Integer, Integer> currentWeights = new ConcurrentHashMap<>();
+
         int instanceCount;
+
         int selectedIndex;
+
         void reset() {
             currentWeights.clear();
             selectedIndex = -1;

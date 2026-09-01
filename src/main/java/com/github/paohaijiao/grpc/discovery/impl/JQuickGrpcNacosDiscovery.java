@@ -36,8 +36,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 
 /**
- * Nacos 服务发现实现 - 修正版
- * 支持注册多个服务实例
+ * Nacos service discovery implementation - revised
+ * Supports registering multiple service instances
  */
 public class JQuickGrpcNacosDiscovery implements JQuickGrpcServiceDiscovery {
 
@@ -168,7 +168,6 @@ public class JQuickGrpcNacosDiscovery implements JQuickGrpcServiceDiscovery {
         if (!eventListeners.containsKey(serviceName)) {
             createEventListener(serviceName);
         }
-        // 立即触发一次
         List<JQuickGrpcServiceInstance> instances = getInstances(serviceName);
         listener.onChange(serviceName, instances);
     }
@@ -188,7 +187,6 @@ public class JQuickGrpcNacosDiscovery implements JQuickGrpcServiceDiscovery {
                         log.error("Failed to unsubscribe: {}", serviceName, e);
                     }
                 }
-                // 清理缓存
                 instanceCache.remove(serviceName);
             }
         }
@@ -208,7 +206,6 @@ public class JQuickGrpcNacosDiscovery implements JQuickGrpcServiceDiscovery {
         }
         heartbeatExecutors.clear();
         unregisterAllServices();
-        // 关闭所有监听器
         for (Map.Entry<String, EventListener> entry : eventListeners.entrySet()) {
             try {
                 namingService.unsubscribe(entry.getKey(), group, entry.getValue());
@@ -217,12 +214,19 @@ public class JQuickGrpcNacosDiscovery implements JQuickGrpcServiceDiscovery {
             }
         }
         eventListeners.clear();
-        // 关闭客户端
         if (namingService != null) {
             try {
                 namingService.shutDown();
             } catch (NacosException e) {
                 log.warn("Error shutting down naming service", e);
+            }
+        }
+        //  configService was never shut down, leaking Nacos background threads
+        if (configService != null) {
+            try {
+                configService.shutDown();
+            } catch (NacosException e) {
+                log.warn("Error shutting down config service", e);
             }
         }
         executor.shutdown();
@@ -261,8 +265,10 @@ public class JQuickGrpcNacosDiscovery implements JQuickGrpcServiceDiscovery {
 
     private void handleServiceChange(String serviceName) {
         List<JQuickGrpcServiceInstance> newInstances = getInstances(serviceName);
-        List<ServiceChangeListener> serviceListeners = listeners.get(serviceName);
-        if (serviceListeners != null) {
+        //  include wildcard ("*") subscribers, otherwise clients subscribed with "*"
+        // never receive change notifications
+        List<ServiceChangeListener> serviceListeners = getNotifiableListeners(serviceName);
+        if (serviceListeners != null && !serviceListeners.isEmpty()) {
             for (ServiceChangeListener listener : serviceListeners) {
                 try {
                     listener.onChange(serviceName, newInstances);
@@ -275,8 +281,21 @@ public class JQuickGrpcNacosDiscovery implements JQuickGrpcServiceDiscovery {
     }
 
     /**
-     * 注册服务实例（支持多个）
+     * Collects listeners to notify: exact-name subscribers plus wildcard ("*") subscribers.
      */
+    private List<ServiceChangeListener> getNotifiableListeners(String serviceName) {
+        List<ServiceChangeListener> result = new ArrayList<>();
+        List<ServiceChangeListener> exact = listeners.get(serviceName);
+        if (exact != null) {
+            result.addAll(exact);
+        }
+        List<ServiceChangeListener> wildcard = listeners.get("*");
+        if (wildcard != null) {
+            result.addAll(wildcard);
+        }
+        return result;
+    }
+
     public void registerService(String serviceName, String host, int port) {
         registerService(serviceName, host, port, 1, null);
     }
@@ -285,9 +304,6 @@ public class JQuickGrpcNacosDiscovery implements JQuickGrpcServiceDiscovery {
         registerService(serviceName, host, port, weight, null);
     }
 
-    /**
-     * 注册服务实例（支持多个）
-     */
     public void registerService(String serviceName, String host, int port, int weight, JQuickServiceInstanceMetrics metrics) {
         String instanceKey = generateInstanceKey(serviceName, host, port);
         if (registeredInstances.containsKey(instanceKey)) {
@@ -333,10 +349,7 @@ public class JQuickGrpcNacosDiscovery implements JQuickGrpcServiceDiscovery {
         return instance;
     }
 
-    /**
-     * 启动心跳 - 通过定时重新注册来保持心跳
-     * Nacos 会通过客户端的心跳机制自动维护健康状态
-     */
+
     private void startHeartbeat(String instanceKey, String serviceName, String host, int port, int weight, JQuickServiceInstanceMetrics metrics) {
         ScheduledExecutorService heartbeatExecutor = Executors.newSingleThreadScheduledExecutor();
         heartbeatExecutors.put(instanceKey, heartbeatExecutor);
@@ -350,11 +363,11 @@ public class JQuickGrpcNacosDiscovery implements JQuickGrpcServiceDiscovery {
             } catch (Exception e) {
                 log.warn("Failed to send heartbeat for instance: {}", instanceKey, e);
             }
-        }, 10, 10, TimeUnit.SECONDS);  // 每10秒重新注册一次
+        }, 10, 10, TimeUnit.SECONDS);
     }
 
     /**
-     * 更新服务实例的 Metrics
+     * update instance Metrics
      */
     public void updateMetrics(String serviceName, String host, int port, JQuickServiceInstanceMetrics metrics) {
         String instanceKey = generateInstanceKey(serviceName, host, port);
@@ -376,7 +389,7 @@ public class JQuickGrpcNacosDiscovery implements JQuickGrpcServiceDiscovery {
     }
 
     /**
-     * 注销服务实例
+     * destroy service instance
      */
     public void unregisterService(String serviceName, String host, int port) {
         String instanceKey = generateInstanceKey(serviceName, host, port);
@@ -402,7 +415,7 @@ public class JQuickGrpcNacosDiscovery implements JQuickGrpcServiceDiscovery {
     }
 
     /**
-     * 注销所有服务
+     * deregister all services instances
      */
     public void unregisterAllServices() {
         for (String instanceKey : new ArrayList<>(registeredInstances.keySet())) {
@@ -414,7 +427,7 @@ public class JQuickGrpcNacosDiscovery implements JQuickGrpcServiceDiscovery {
     }
 
     /**
-     * 更新服务实例的健康状态
+     * update instance health status and enabled status
      */
     public void updateHealth(String serviceName, String host, int port, boolean healthy) {
         String instanceKey = generateInstanceKey(serviceName, host, port);
@@ -438,7 +451,7 @@ public class JQuickGrpcNacosDiscovery implements JQuickGrpcServiceDiscovery {
     }
 
     /**
-     * 获取当前注册的所有实例（用于调试）
+     * get all registered service instances
      */
     public Map<String, RegisteredInstanceInfo> getRegisteredInstances() {
         return new HashMap<>(registeredInstances);
@@ -471,10 +484,15 @@ public class JQuickGrpcNacosDiscovery implements JQuickGrpcServiceDiscovery {
     }
 
     public static class RegisteredInstanceInfo {
+
         public String serviceName;
+
         public String host;
+
         public int port;
+
         public int weight;
+
         public JQuickServiceInstanceMetrics metrics;
     }
 }

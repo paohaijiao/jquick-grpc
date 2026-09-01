@@ -10,13 +10,13 @@ import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
- * 最少连接数负载均衡器
- * 选择当前活跃连接数最少的实例
- * 需要配合指标收集使用
+ * Least‑connections load balancer
+ * Selects the instance with minimal active connections
+ * Requires metrics collection
  */
 public class JQuickGrpcLeastConnectionLoadBalancer implements JQuickGrpcLoadBalancer {
 
-    // 记录每个实例的活跃连接数
+    // record active connections for each address
     private final ConcurrentMap<String, AtomicInteger> activeConnections;
 
     public JQuickGrpcLeastConnectionLoadBalancer() {
@@ -40,7 +40,7 @@ public class JQuickGrpcLeastConnectionLoadBalancer implements JQuickGrpcLoadBala
     }
 
     /**
-     * 增加连接数（请求开始时调用）
+     * increment connection count for the instance
      */
     public void incrementConnection(JQuickGrpcServiceInstance instance) {
         activeConnections.computeIfAbsent(instance.getAddress(), k -> new AtomicInteger(0))
@@ -51,7 +51,7 @@ public class JQuickGrpcLeastConnectionLoadBalancer implements JQuickGrpcLoadBala
     }
 
     /**
-     * 减少连接数（请求结束时调用）
+     * reduce connection count for the instance
      */
     public void decrementConnection(JQuickGrpcServiceInstance instance) {
         AtomicInteger counter = activeConnections.get(instance.getAddress());

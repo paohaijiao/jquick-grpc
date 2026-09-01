@@ -8,8 +8,8 @@ import java.util.List;
 import java.util.Random;
 
 /**
- * 随机负载均衡器
- * 从可用实例中随机选择一个
+ * Random load balancer
+ * Picks one instance randomly from available instances
  */
 public class JQuickGrpcRandomLoadBalancer implements JQuickGrpcLoadBalancer {
 

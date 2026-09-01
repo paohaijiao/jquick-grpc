@@ -10,8 +10,16 @@ import io.grpc.Status;
 import java.net.InetSocketAddress;
 import java.util.List;
 import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 
+/**
+ * <p>
+ * JQuick discovery-backed NameResolver. Fixes: (1) subscribe/unsubscribe now share one
+ * listener instance (a method reference creates a new object per evaluation, so the old
+ * code could never unsubscribe); (2) re-entrant resolves are guarded atomically;
+ * (3) refresh/callbacks before start are ignored instead of NPE.
+ */
 public class JQuickGrpcNameResolver extends NameResolver {
 
     private final String serviceName;
@@ -20,9 +28,14 @@ public class JQuickGrpcNameResolver extends NameResolver {
 
     private final Executor executor;
 
-    private Listener2 listener;
+    /**
+     * The single listener instance shared by start/shutdown for correct unsubscription.
+     */
+    private final JQuickGrpcServiceDiscovery.ServiceChangeListener changeListener = this::onServiceChange;
 
-    private boolean resolving = false;
+    private final AtomicBoolean resolving = new AtomicBoolean(false);
+
+    private volatile Listener2 listener;
 
     public JQuickGrpcNameResolver(String serviceName, JQuickGrpcServiceDiscovery serviceDiscovery, Executor executor) {
         this.serviceName = serviceName;
@@ -36,15 +49,16 @@ public class JQuickGrpcNameResolver extends NameResolver {
     }
 
     @Override
-    public void start(Listener2 listener) {  // 使用 Listener2
+    public void start(Listener2 listener) {
         this.listener = listener;
-        serviceDiscovery.subscribe(serviceName, this::onServiceChange);
+        serviceDiscovery.subscribe(serviceName, changeListener);
         resolve();
     }
 
     @Override
     public void shutdown() {
-        serviceDiscovery.unsubscribe(serviceName, this::onServiceChange);
+        listener = null;
+        serviceDiscovery.unsubscribe(serviceName, changeListener);
     }
 
     @Override
@@ -53,26 +67,30 @@ public class JQuickGrpcNameResolver extends NameResolver {
     }
 
     private void resolve() {
-        if (resolving) {
+        Listener2 current = listener;
+        if (current == null) {
+            // not started yet or already shut down
             return;
         }
-        resolving = true;
+        if (!resolving.compareAndSet(false, true)) {
+            return;
+        }
         executor.execute(() -> {
             try {
                 List<JQuickGrpcServiceInstance> instances = serviceDiscovery.getInstances(serviceName);
                 List<EquivalentAddressGroup> addresses = convertToAddressGroups(instances);
                 if (addresses.isEmpty()) {
-                    listener.onError(Status.NOT_FOUND.withDescription("No instances found for service: " + serviceName));
+                    current.onError(Status.NOT_FOUND.withDescription("No instances found for service: " + serviceName));
                 } else {
-                    listener.onResult(ResolutionResult.newBuilder()
+                    current.onResult(ResolutionResult.newBuilder()
                             .setAddresses(addresses)
                             .setAttributes(Attributes.EMPTY)
                             .build());
                 }
             } catch (Exception e) {
-                listener.onError(Status.UNAVAILABLE.withCause(e));
+                current.onError(Status.UNAVAILABLE.withCause(e));
             } finally {
-                resolving = false;
+                resolving.set(false);
             }
         });
     }
