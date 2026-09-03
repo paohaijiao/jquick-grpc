@@ -1,5 +1,6 @@
 package com.github.paohaijiao.grpc.server.impl;
 
+import com.github.paohaijiao.grpc.annotation.JQuickGrpcService;
 import com.github.paohaijiao.grpc.config.JQuickGrpcServerConfig;
 import com.github.paohaijiao.grpc.health.JQuickGrpcHealthStatusManager;
 import com.github.paohaijiao.grpc.server.JQuickGrpcServer;
@@ -131,8 +132,10 @@ public class JQuickGrpcNettyServer implements JQuickGrpcServer {
 
     @Override
     public void registerService(BindableService service) {
+        String serviceNameFromAnnotation=getServiceNameFromAnnotation(service);
         String serviceName = service.bindService().getServiceDescriptor().getName();
-        registerService(serviceName, service);
+        String name=null!=serviceNameFromAnnotation?serviceNameFromAnnotation:serviceName;
+        registerService(name, service);
     }
 
     @Override
@@ -183,5 +186,32 @@ public class JQuickGrpcNettyServer implements JQuickGrpcServer {
      */
     public void addInterceptor(ServerInterceptor interceptor) {
         interceptors.add(interceptor);
+    }
+
+    private String getServiceNameFromAnnotation(BindableService service) {
+        Class<?> serviceClass = service.getClass();
+        if (serviceClass.getName().contains("$$")) {
+            Class<?> superClass = serviceClass.getSuperclass();
+            if (superClass != null && superClass != Object.class) {
+                serviceClass = superClass;
+            }
+        }
+        for (Class<?> interfaceClass : serviceClass.getInterfaces()) {
+            if (interfaceClass.isAnnotationPresent(JQuickGrpcService.class)) {
+                JQuickGrpcService annotation = interfaceClass.getAnnotation(JQuickGrpcService.class);
+                String name = annotation.name();
+                if (name != null && !name.isEmpty()) {
+                    return name;
+                }
+            }
+        }
+        if (serviceClass.isAnnotationPresent(JQuickGrpcService.class)) {
+            JQuickGrpcService annotation = serviceClass.getAnnotation(JQuickGrpcService.class);
+            String name = annotation.name();
+            if (name != null && !name.isEmpty()) {
+                return name;
+            }
+        }
+        return null;
     }
 }
