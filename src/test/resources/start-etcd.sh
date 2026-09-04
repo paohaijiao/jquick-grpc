@@ -11,7 +11,8 @@ docker run -d \
   -e ALLOW_NONE_AUTHENTICATION=yes \
   -e ETCD_ADVERTISE_CLIENT_URLS=http://0.0.0.0:2379 \
   -e ETCD_LISTEN_CLIENT_URLS=http://0.0.0.0:2379 \
-  bitnami/etcd:3.5.9
+  bitnamilegacy/etcd:3.5.9
+
 echo "Waiting for Etcd to start..."
 sleep 5
 if docker exec etcd-test etcdctl endpoint health 2>/dev/null | grep -q "healthy"; then

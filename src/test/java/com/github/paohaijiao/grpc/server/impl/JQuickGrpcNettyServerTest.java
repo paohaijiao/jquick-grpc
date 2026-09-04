@@ -96,8 +96,10 @@ class JQuickGrpcNettyServerTest {
     @Test
     @DisplayName("服务注册与注销 / register and unregister services")
     void registerAndUnregisterService() {
-        // services are keyed by the fully qualified proto service name
-        String serviceName = new JQuickGreeterServiceImpl().bindService().getServiceDescriptor().getName();
+        // 注册键语义：@JQuickGrpcService(name=...) 注解名优先，未注解时回退 proto 服务全限定名
+        // Registration key: the @JQuickGrpcService(name=...) value wins when present, otherwise
+        // the fully qualified proto service name is used
+        String serviceName = "Greeter";
         server.registerService(new JQuickGreeterServiceImpl());
         assertThat(server.getRegisteredServices()).containsKey(serviceName);
 

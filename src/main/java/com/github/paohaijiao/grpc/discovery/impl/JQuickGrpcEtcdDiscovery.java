@@ -89,7 +89,7 @@ public class JQuickGrpcEtcdDiscovery implements JQuickGrpcServiceDiscovery {
     private ScheduledExecutorService keepAliveExecutor;
 
     public JQuickGrpcEtcdDiscovery() {
-        this("http://localhost:2379");
+        this(System.getProperty("etcd.endpoints", "http://127.0.0.1:2379"));
     }
 
     public JQuickGrpcEtcdDiscovery(String endpoints) {
@@ -160,11 +160,6 @@ public class JQuickGrpcEtcdDiscovery implements JQuickGrpcServiceDiscovery {
             log.debug("Cannot get instances, client closed or not initialized: {}", serviceName);
             return Collections.emptyList();
         }
-        List<JQuickGrpcServiceInstance> cached = instanceCache.get(serviceName);
-        if (cached != null && !cached.isEmpty()) {
-            log.debug("Returning {} cached instances for service: {}", cached.size(), serviceName);
-            return new ArrayList<>(cached);
-        }
         try {
             ensureInitialized();
             String prefix = getServicePath(serviceName);
@@ -178,7 +173,9 @@ public class JQuickGrpcEtcdDiscovery implements JQuickGrpcServiceDiscovery {
             return instances;
         } catch (Exception e) {
             log.error("Failed to get instances from etcd for service: {}", serviceName, e);
-            return Collections.emptyList();
+            // Fall back to the last successful snapshot only on a real query error.
+            List<JQuickGrpcServiceInstance> cached = instanceCache.get(serviceName);
+            return cached != null ? new ArrayList<>(cached) : Collections.emptyList();
         }
     }
 
@@ -341,9 +338,10 @@ public class JQuickGrpcEtcdDiscovery implements JQuickGrpcServiceDiscovery {
             log.warn("Service already registered: {}", registeredServiceName);
             return;
         }
+        long leaseId = 0;
         try {
             ensureInitialized();
-            long leaseId = leaseClient.grant(leaseTtlSeconds).get(5, TimeUnit.SECONDS).getID();
+            leaseId = leaseClient.grant(leaseTtlSeconds).get(5, TimeUnit.SECONDS).getID();
             JQuickGrpcServiceInstance instance = new JQuickGrpcServiceInstance(serviceName, host, port);
             instance.setWeight(weight);
             instance.setHealthy(true);
@@ -364,18 +362,28 @@ public class JQuickGrpcEtcdDiscovery implements JQuickGrpcServiceDiscovery {
                 log.debug("Instance metrics: CPU={}, Memory={}, ActiveRequests={}", metrics.getCpuUsage(), metrics.getMemoryUsage(), metrics.getActiveRequests());
             }
         } catch (Exception e) {
+            // Fix: revoke the granted lease when registration fails to avoid etcd lease leaks
+            if (leaseId != 0 && leaseClient != null) {
+                try {
+                    leaseClient.revoke(leaseId).get(3, TimeUnit.SECONDS);
+                } catch (Exception revokeEx) {
+                    log.warn("Failed to revoke lease {} after registration error", leaseId, revokeEx);
+                }
+            }
             log.error("Failed to register service: {}", serviceName, e);
             throw new RuntimeException("Failed to register service", e);
         }
     }
 
     /**
-     * 启动 Keep Alive 心跳
+     * enable Keep Alive heartbeat
      */
     private void startKeepAlive(long leaseId, String serviceName) {
         keepAliveExecutor = Executors.newSingleThreadScheduledExecutor();
         //  guard against zero period when leaseTtlSeconds < 3
         long periodSeconds = Math.max(1, leaseTtlSeconds / 3);
+        // Fix: the first keep-alive must fire before the lease expires; the old hard-coded
+        long initialDelaySeconds = Math.max(1, Math.min(periodSeconds, leaseTtlSeconds - 1));
         keepAliveExecutor.scheduleAtFixedRate(() -> {
             try {
                 if (!closed.get() && initialized.get() && leaseClient != null) {
@@ -385,7 +393,7 @@ public class JQuickGrpcEtcdDiscovery implements JQuickGrpcServiceDiscovery {
             } catch (Exception e) {
                 log.warn("Failed to send keep alive for service: {}", serviceName, e);
             }
-        }, 5, periodSeconds, TimeUnit.SECONDS);
+        }, initialDelaySeconds, periodSeconds, TimeUnit.SECONDS);
     }
 
     /**
