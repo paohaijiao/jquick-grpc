@@ -37,19 +37,6 @@ class JQuickGrpcEtcdDiscoveryPerformanceTest {
 
     private static final String PERFORMANCE_SERVICE = "perf-test-service";
 
-    /**
-     * 本类所有 discovery 客户端共用的 etcd 地址，默认指向仓库 start-etcd.sh 启动的本地 etcd，
-     * 可通过 -Detcd.endpoints=http://host:2379 覆盖。
-     * 修复要点：注册端与查询端必须指向同一 endpoint（并支持统一覆盖）。此前各客户端
-     * 硬编码不同/不可达的地址（如 192.168.32.173），导致注册的数据查询端永远看不到，
-     * getInstances 恒为空，且注册因连接失败提前抛出、startKeepAlive 从未执行。
-     * The single etcd endpoint shared by every discovery client in this class; defaults to the
-     * local etcd launched by start-etcd.sh, overridable with -Detcd.endpoints=http://host:2379.
-     * Fix: registrars and lookups must target the same reachable endpoint. Previously clients
-     * hard-coded different/unreachable addresses (e.g. 192.168.32.173), so registered data was
-     * never visible to the lookup client (empty getInstances) and registration aborted before
-     * startKeepAlive ever ran.
-     */
     private static final String ETCD_ENDPOINTS = System.getProperty("etcd.endpoints", "http://127.0.0.1:2379");
 
     @BeforeEach
@@ -133,7 +120,6 @@ class JQuickGrpcEtcdDiscoveryPerformanceTest {
                 latch.countDown();
             }).start();
         }
-
         boolean completed = latch.await(30, TimeUnit.SECONDS);
         Assertions.assertTrue(completed);
         long avgTimeMicros = totalTime.get() / subscribeCount / 1000;
@@ -149,7 +135,6 @@ class JQuickGrpcEtcdDiscoveryPerformanceTest {
         JQuickGrpcEtcdDiscovery registrar = new JQuickGrpcEtcdDiscovery(ETCD_ENDPOINTS, null, null, "/grpc/services", 3);
         try {
             registrar.registerService(keepAliveService, "127.0.0.1", 9300, 1);
-            // Wait beyond the lease TTL; startKeepAlive should renew it roughly every second.
             Thread.sleep(5000);
             List<JQuickGrpcServiceInstance> instances = discovery.getInstances(keepAliveService);
             Assertions.assertEquals(1, instances.size(),

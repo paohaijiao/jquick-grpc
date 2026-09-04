@@ -45,7 +45,7 @@ public class JQuickGrpcEtcdDiscoveryTest {
 
     @BeforeAll
     static void setUpAll() {
-        discovery = new JQuickGrpcEtcdDiscovery("http://192.168.32.173:2379");
+        discovery = new JQuickGrpcEtcdDiscovery("http://127.0.0.1:2379");
         System.out.println("Etcd discovery initialized");
     }
 
@@ -91,8 +91,8 @@ public class JQuickGrpcEtcdDiscoveryTest {
     @Test
     @Order(2)
     void testRegisterMultipleInstances() {
-        JQuickGrpcEtcdDiscovery discovery2 = new JQuickGrpcEtcdDiscovery("http://192.168.32.173:2379");
-        JQuickGrpcEtcdDiscovery discovery3 = new JQuickGrpcEtcdDiscovery("http://192.168.32.173:2379");
+        JQuickGrpcEtcdDiscovery discovery2 = new JQuickGrpcEtcdDiscovery("http://127.0.0.1:2379");
+        JQuickGrpcEtcdDiscovery discovery3 = new JQuickGrpcEtcdDiscovery("http://127.0.0.1:2379");
         try {
             discovery.registerService(TEST_SERVICE2, "192.168.1.101", 9091, 1);
             discovery2.registerService(TEST_SERVICE2, "192.168.1.102", 9092, 2);
@@ -158,7 +158,7 @@ public class JQuickGrpcEtcdDiscoveryTest {
         CountDownLatch latch = new CountDownLatch(2);
         AtomicInteger changeCount = new AtomicInteger(0);
         AtomicReference<List<JQuickGrpcServiceInstance>> latestInstances = new AtomicReference<>();
-        JQuickGrpcEtcdDiscovery anotherInstance = new JQuickGrpcEtcdDiscovery("http://192.168.32.173:2379");
+        JQuickGrpcEtcdDiscovery anotherInstance = new JQuickGrpcEtcdDiscovery("http://127.0.0.1:2379");
         try {
             discovery.subscribe(TEST_SERVICE, (serviceName, instances) -> {
                 changeCount.incrementAndGet();
@@ -183,7 +183,7 @@ public class JQuickGrpcEtcdDiscoveryTest {
     @Test
     @Order(7)
     void testLeaseAutoExpiration() throws InterruptedException {
-        JQuickGrpcEtcdDiscovery shortLeaseDiscovery = new JQuickGrpcEtcdDiscovery("http://192.168.32.173:2379", null, null, "/grpc/services", 5);
+        JQuickGrpcEtcdDiscovery shortLeaseDiscovery = new JQuickGrpcEtcdDiscovery("http://127.0.0.1:2379", null, null, "/grpc/services", 5);
         try {
             shortLeaseDiscovery.registerService(TEST_SERVICE, "192.168.1.99", 9999, 1);
             sleep(500);
@@ -281,8 +281,8 @@ public class JQuickGrpcEtcdDiscoveryTest {
         System.out.println("=== 测试不同服务隔离 ===");
         String serviceA = "service-a";
         String serviceB = "service-b";
-        JQuickGrpcEtcdDiscovery discoveryA = new JQuickGrpcEtcdDiscovery("http://192.168.32.173:2379");
-        JQuickGrpcEtcdDiscovery discoveryB = new JQuickGrpcEtcdDiscovery("http://192.168.32.173:2379");
+        JQuickGrpcEtcdDiscovery discoveryA = new JQuickGrpcEtcdDiscovery("http://127.0.0.1:2379");
+        JQuickGrpcEtcdDiscovery discoveryB = new JQuickGrpcEtcdDiscovery("http://127.0.0.1:2379");
         try {
             discoveryA.registerService(serviceA, "10.0.0.1", 8001, 1);
             discoveryB.registerService(serviceB, "10.0.0.2", 8002, 1);
