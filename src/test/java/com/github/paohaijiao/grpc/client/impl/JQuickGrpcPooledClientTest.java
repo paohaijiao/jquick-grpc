@@ -146,13 +146,9 @@ class JQuickGrpcPooledClientTest {
             int port = server.getServer().getPort();
             discovery.registerService("GreeterService", "localhost", port);
             client = new JQuickGrpcPooledClient(clientConfig(), discovery, new JQuickGrpcRoundRobinLoadBalancer());
-
             GreeterGrpc.GreeterBlockingStub stub = client.getService(GreeterGrpc.GreeterBlockingStub.class, "GreeterService");
             assertThat(stub.sayHello(request("JQuick")).getMessage()).isEqualTo("Hello, JQuick!");
-            // 第二次调用验证连接池复用路径 / second call exercises the pooled channel reuse path
             assertThat(stub.sayHello(request("Again")).getMessage()).isEqualTo("Hello, Again!");
-
-            // 调用结束后通道已归还连接池 / channel returned to the pool after each call
             assertThat(client.getStats()).containsEntry("channelPools", 1);
         } finally {
             server.stop();

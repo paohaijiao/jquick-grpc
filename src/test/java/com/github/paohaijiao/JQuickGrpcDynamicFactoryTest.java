@@ -48,7 +48,7 @@ public class JQuickGrpcDynamicFactoryTest {
     void testCreatePooledClient() {
         JQuickGrpcClientConfig config = new JQuickGrpcClientConfig();
         config.setClientType("pooled");
-        // 客户端实现强制要求非空负载均衡器 / client implementations require a non-null load balancer
+        // client implementations require a non-null load balancer
         JQuickGrpcClient client = factory.createClient(config, null, new JQuickGrpcRoundRobinLoadBalancer());
         assertNotNull(client);
         assertEquals("pooled", client.getClientType());

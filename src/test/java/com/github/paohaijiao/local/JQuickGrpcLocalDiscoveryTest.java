@@ -123,6 +123,16 @@ class JQuickGrpcLocalDiscoveryTest {
         assertEquals(8080, instances.get(0).getPort());
         log.info(" 服务发现成功: {}", instances.get(0).getAddress());
     }
+    @Test
+    void testMutipleGetInstances() {
+        discovery.registerService("test-discovery-service", "10.0.0.1", 8080, 10);
+        discovery.registerService("test-discovery-service", "10.0.0.2", 8080, 10);
+        List<JQuickGrpcServiceInstance> instances = discovery.getInstances("test-discovery-service");
+        assertEquals(2, instances.size());
+        assertEquals("10.0.0.1", instances.get(0).getHost());
+        assertEquals(8080, instances.get(0).getPort());
+        log.info(" 服务发现成功: {}", instances.get(0).getAddress());
+    }
 
     @Test
     void testServiceChangeListener() throws InterruptedException {
