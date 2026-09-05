@@ -310,6 +310,20 @@ public class JQuickGrpcNacosDiscovery implements JQuickGrpcServiceDiscovery {
             log.warn("Service instance already registered: {}", instanceKey);
             return;
         }
+        String servicePrefix = serviceName + "|";
+        List<String> shadowedInstances = new ArrayList<>();
+        for (String key : registeredInstances.keySet()) {
+            if (key.startsWith(servicePrefix) && !key.equals(instanceKey)) {
+                shadowedInstances.add(key);
+            }
+        }
+        if (!shadowedInstances.isEmpty()) {
+            log.warn("Service '{}' is already registered on this client via {}; the new registration "
+                            + "{} will shadow the previous one on the Nacos server because only one "
+                            + "ephemeral instance per service is kept per client. Use a separate "
+                            + "JQuickGrpcNacosDiscovery per instance/process for multi-instance services.",
+                    serviceName, shadowedInstances, instanceKey);
+        }
         try {
             ensureInitialized();
             Instance instance = createNacosInstance(serviceName, host, port, weight, metrics);

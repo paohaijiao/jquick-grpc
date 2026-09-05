@@ -21,6 +21,8 @@ import com.github.paohaijiao.grpc.domain.JQuickGrpcServiceInstance;
 import com.github.paohaijiao.grpc.metadata.JQuickServiceInstanceMetrics;
 import org.junit.jupiter.api.*;
 
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -40,7 +42,7 @@ import static org.junit.jupiter.api.Assertions.*;
 class JQuickGrpcNacosDiscoveryTest {
 
     private static final JConsole log = JConsole.getInstance();
-    private static final String NACOS_SERVER = "192.168.32.173:8848";
+    private static final String NACOS_SERVER = "127.0.0.1:8848";
     private static final String NACOS_USERNAME = "nacos";
     private static final String NACOS_PASSWORD = "nacos";
     private static JQuickGrpcNacosDiscovery discovery;
@@ -120,19 +122,39 @@ class JQuickGrpcNacosDiscoveryTest {
     @DisplayName("3. 测试注册多个实例（同一个服务）")
     void testRegisterMultipleInstancesSameService() throws InterruptedException {
         String serviceName = "test-multi-instance-service";
-        discovery.registerService(serviceName, "192.168.1.101", 9091, 1);
-        discovery.registerService(serviceName, "192.168.1.102", 9092, 2);
-        discovery.registerService(serviceName, "192.168.1.103", 9093, 3);
-        Thread.sleep(3000);
-        List<JQuickGrpcServiceInstance> instances = discovery.getInstances(serviceName);
-        assertEquals(3, instances.size());
-        int totalWeight = instances.stream().mapToInt(JQuickGrpcServiceInstance::getWeight).sum();
-        assertEquals(6, totalWeight);
-        for (JQuickGrpcServiceInstance instance : instances) {
-            log.info(" 实例: {} weight={}", instance.getAddress(), instance.getWeight());
+        String[][] targets = {
+                {"192.168.1.101", "9091", "1"},
+                {"192.168.1.102", "9092", "2"},
+                {"192.168.1.103", "9093", "3"}
+        };
+        List<JQuickGrpcNacosDiscovery> registrars = new ArrayList<>();
+        try {
+            for (String[] target : targets) {
+                JQuickGrpcNacosDiscovery registrar =
+                        new JQuickGrpcNacosDiscovery(NACOS_SERVER, NACOS_USERNAME, NACOS_PASSWORD);
+                registrars.add(registrar);
+                registrar.registerService(serviceName, target[0], Integer.parseInt(target[1]),
+                        Integer.parseInt(target[2]));
+            }
+            Thread.sleep(3000);
+            List<JQuickGrpcServiceInstance> instances = discovery.getInstances(serviceName);
+            assertEquals(3, instances.size(), "同一个服务的 3 个实例都应被发现");
+            int totalWeight = instances.stream().mapToInt(JQuickGrpcServiceInstance::getWeight).sum();
+            assertEquals(6, totalWeight);
+            for (JQuickGrpcServiceInstance instance : instances) {
+                log.info(" 实例: {} weight={}", instance.getAddress(), instance.getWeight());
+            }
+            log.info("成功注册 {} 个实例", instances.size());
+        } finally {
+            for (JQuickGrpcNacosDiscovery registrar : registrars) {
+                try {
+                    registrar.unregisterAllServices();
+                    registrar.close();
+                } catch (Exception e) {
+                    log.warn("Cleanup registrar error: {}", e.getMessage());
+                }
+            }
         }
-
-        log.info("成功注册 {} 个实例", instances.size());
     }
 
     @Test
@@ -345,7 +367,6 @@ class JQuickGrpcNacosDiscoveryTest {
     @Order(11)
     @DisplayName("11. 测试注销所有服务")
     void testUnregisterAllServices() throws InterruptedException {
-
         discovery.registerService("service-1", "192.168.1.1", 8001, 1);
         discovery.registerService("service-2", "192.168.1.2", 8002, 2);
         discovery.registerService("service-3", "192.168.1.3", 8003, 3);
@@ -369,11 +390,16 @@ class JQuickGrpcNacosDiscoveryTest {
         int instanceCount = 5;
         CountDownLatch latch = new CountDownLatch(instanceCount);
         AtomicInteger successCount = new AtomicInteger(0);
+        List<JQuickGrpcNacosDiscovery> registrars =
+                Collections.synchronizedList(new ArrayList<>());
         for (int i = 0; i < instanceCount; i++) {
             final int index = i;
             new Thread(() -> {
+                JQuickGrpcNacosDiscovery registrar = null;
                 try {
-                    discovery.registerService(serviceName, "192.168.1." + index, 9000 + index, 1);
+                    registrar = new JQuickGrpcNacosDiscovery(NACOS_SERVER, NACOS_USERNAME, NACOS_PASSWORD);
+                    registrars.add(registrar);
+                    registrar.registerService(serviceName, "192.168.1." + index, 9000 + index, 1);
                     successCount.incrementAndGet();
                     log.debug(" 实例 {} 注册成功", index);
                 } catch (Exception e) {
@@ -390,6 +416,14 @@ class JQuickGrpcNacosDiscoveryTest {
         List<JQuickGrpcServiceInstance> instances = discovery.getInstances(serviceName);
         assertEquals(instanceCount, instances.size(), "所有实例都应该注册成功");
         log.info(" 并发注册完成: {}/{} 成功", successCount.get(), instanceCount);
+        for (JQuickGrpcNacosDiscovery registrar : registrars) {
+            try {
+                registrar.unregisterAllServices();
+                registrar.close();
+            } catch (Exception e) {
+                log.warn("Cleanup registrar error: {}", e.getMessage());
+            }
+        }
     }
 
     @Test
